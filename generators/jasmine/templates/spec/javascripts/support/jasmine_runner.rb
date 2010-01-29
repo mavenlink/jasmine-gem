@@ -1,7 +1,7 @@
 require 'rubygems'
 require File.expand_path(File.join(File.dirname(__FILE__), 'jasmine_config'))
 
-jasmine_config = Jasmine::Config.new
+jasmine_config = Jasmine::Config.new(:browser => ENV['BROWSER'])
 spec_builder = Jasmine::SpecBuilder.new(jasmine_config)
 
 should_stop = false
