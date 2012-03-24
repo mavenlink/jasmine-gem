@@ -1,59 +1,49 @@
 module Jasmine
   class Config
     require 'yaml'
+    require 'erb'
 
-    def initialize(options = {})
-      require 'selenium_rc'
-      @selenium_jar_path = SeleniumRC::Server.allocate.jar_path
-      @options = options
+    def browser
+      ENV["JASMINE_BROWSER"] || 'firefox'
+    end
 
-      @browser = options[:browser] ? options.delete(:browser) : 'firefox'
-      @selenium_pid = nil
-      @jasmine_server_pid = nil
+    def jasmine_host
+      ENV["JASMINE_HOST"] || 'http://localhost'
+    end
+
+    def jasmine_port
+      ENV["JASMINE_PORT"] || Jasmine::find_unused_port
     end
 
     def start_server(port = 8888)
-      Jasmine::Server.new(port, self).start
+      server = Rack::Server.new(:Port => port, :AccessLog => [])
+      server.instance_variable_set(:@app, Jasmine.app(self)) # workaround for Rack bug, when Rack > 1.2.1 is released Rack::Server.start(:app => Jasmine.app(self)) will work
+      server.start
     end
 
     def start
-      start_servers
-      @client = Jasmine::SeleniumDriver.new("localhost", @selenium_server_port, "*#{@browser}", "http://localhost:#{@jasmine_server_port}/")
+      start_jasmine_server
+      @client = Jasmine::SeleniumDriver.new(browser, "#{jasmine_host}:#{@jasmine_server_port}/")
       @client.connect
     end
 
     def stop
       @client.disconnect
-      stop_servers
     end
 
-    def start_servers
-      @jasmine_server_port = Jasmine::find_unused_port
-      @selenium_server_port = Jasmine::find_unused_port
-
-      server = Jasmine::Server.new(@jasmine_server_port, self)
-
-      @selenium_pid = fork do
-        Process.setpgrp
-        exec "java -jar #{@selenium_jar_path} -port #{@selenium_server_port} > /dev/null 2>&1"
+    def start_jasmine_server
+      require 'json'
+      @jasmine_server_port = jasmine_port
+      Thread.new do
+        start_server(@jasmine_server_port)
       end
-      puts "selenium started.  pid is #{@selenium_pid}"
-
-      @jasmine_server_pid = fork do
-        Process.setpgrp
-        server.start
-        exit! 0
-      end
-      puts "jasmine server started.  pid is #{@jasmine_server_pid}"
-
-      Jasmine::wait_for_listener(@selenium_server_port, "selenium server")
       Jasmine::wait_for_listener(@jasmine_server_port, "jasmine server")
+      puts "jasmine server started."
     end
 
-    def stop_servers
-      puts "shutting down the servers..."
-      Jasmine::kill_process_group(@selenium_pid) if @selenium_pid
-      Jasmine::kill_process_group(@jasmine_server_pid) if @jasmine_server_pid
+    def windows?
+      require 'rbconfig'
+      ::RbConfig::CONFIG['host_os'] =~ /mswin|mingw/
     end
 
     def run
@@ -71,15 +61,24 @@ module Jasmine
       @client.eval_js(script)
     end
 
+    def json_generate(obj)
+      @client.json_generate(obj)
+    end
+
     def match_files(dir, patterns)
       dir = File.expand_path(dir)
-      patterns.collect do |pattern|
-        Dir.glob(File.join(dir, pattern)).collect {|f| f.sub("#{dir}/", "")}.sort
-      end.flatten
+      negative, positive = patterns.partition {|pattern| /^!/ =~ pattern}
+      chosen, negated = [positive, negative].collect do |patterns|
+        patterns.collect do |pattern|
+          matches = Dir.glob(File.join(dir, pattern.gsub(/^!/,'')))
+          matches.empty? && !(pattern =~ /\*|^\!/) ? pattern : matches.collect {|f| f.sub("#{dir}/", "")}.sort
+        end.flatten.uniq
+      end
+      chosen - negated
     end
 
     def simple_config
-      config = File.exist?(simple_config_file) ? File.open(simple_config_file) { |yf| YAML::load( yf ) } : false
+      config = File.exist?(simple_config_file) ? YAML::load(ERB.new(File.read(simple_config_file)).result(binding)) : false
       config || {}
     end
 
@@ -92,15 +91,9 @@ module Jasmine
       "/__root__"
     end
 
-    def mappings
-      {
-        spec_path => spec_dir,
-        root_path => project_root
-      }
-    end
-
-    def js_files
-      src_files.collect {|f| "/" + f } + spec_files.collect {|f| File.join(spec_path, f) }
+    def js_files(spec_filter = nil)
+      spec_files_to_include = spec_filter.nil? ? spec_files : match_files(spec_dir, [spec_filter])
+      src_files.collect {|f| "/" + f } + helpers.collect {|f| File.join(spec_path, f) } + spec_files_to_include.collect {|f| File.join(spec_path, f) }
     end
 
     def css_files
@@ -135,29 +128,36 @@ module Jasmine
       end
     end
 
-    def src_files
-      files = []
-      if simple_config['src_files']
-        files = match_files(src_dir, simple_config['src_files'])
+    def helpers
+      if simple_config['helpers']
+        match_files(spec_dir, simple_config['helpers'])
+      else
+        match_files(spec_dir, ["helpers/**/*.js"])
       end
-      files
+    end
+
+    def src_files
+      if simple_config['src_files']
+        match_files(src_dir, simple_config['src_files'])
+      else
+        []
+      end
     end
 
     def spec_files
-      files = match_files(spec_dir, "**/*.js")
       if simple_config['spec_files']
-        files = match_files(spec_dir, simple_config['spec_files'])
+        match_files(spec_dir, simple_config['spec_files'])
+      else
+        match_files(spec_dir, ["**/*[sS]pec.js"])
       end
-      files
     end
 
     def stylesheets
-      files = []
       if simple_config['stylesheets']
-        files = match_files(src_dir, simple_config['stylesheets'])
+        match_files(src_dir, simple_config['stylesheets'])
+      else
+        []
       end
-      files
     end
-
   end
 end

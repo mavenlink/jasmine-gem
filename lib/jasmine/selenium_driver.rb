@@ -1,27 +1,36 @@
 module Jasmine
   class SeleniumDriver
-    def initialize(selenium_host, selenium_port, selenium_browser_start_command, http_address)
-      require 'selenium/client'
-      @driver = Selenium::Client::Driver.new(
-        selenium_host,
-        selenium_port,
-        selenium_browser_start_command,
-        http_address
-      )
+    def initialize(browser, http_address)
+      require 'selenium-webdriver'
+      selenium_server = if ENV['SELENIUM_SERVER']
+        ENV['SELENIUM_SERVER']
+      elsif ENV['SELENIUM_SERVER_PORT']
+        "http://localhost:#{ENV['SELENIUM_SERVER_PORT']}/wd/hub"
+      end
+      options = if browser == "firefox" && ENV["JASMINE_FIREBUG"]
+                  require File.join(File.dirname(__FILE__), "firebug/firebug")
+                  profile = Selenium::WebDriver::Firefox::Profile.new
+                  profile.enable_firebug
+                  {:profile => profile}
+                end || {}
+      @driver = if selenium_server
+        Selenium::WebDriver.for :remote, :url => selenium_server, :desired_capabilities => browser.to_sym
+      else
+        Selenium::WebDriver.for browser.to_sym, options
+      end
       @http_address = http_address
     end
 
     def tests_have_finished?
-      @driver.get_eval("window.jasmine.getEnv().currentRunner.finished") == "true"
+      @driver.execute_script("return window.jasmine.getEnv().currentRunner.finished") == "true"
     end
 
     def connect
-      @driver.start
-      @driver.open("/")
+      @driver.navigate.to @http_address
     end
 
     def disconnect
-      @driver.stop
+      @driver.quit
     end
 
     def run
@@ -29,16 +38,18 @@ module Jasmine
         sleep 0.1
       end
 
-      puts @driver.get_eval("window.results()")
-      failed_count = @driver.get_eval("window.jasmine.getEnv().currentRunner.results().failedCount").to_i
+      puts @driver.execute_script("return window.results()")
+      failed_count = @driver.execute_script("return window.jasmine.getEnv().currentRunner.results().failedCount").to_i
       failed_count == 0
     end
 
     def eval_js(script)
-      escaped_script = "'" + script.gsub(/(['\\])/) { '\\' + $1 } + "'"
+      result = @driver.execute_script(script)
+      JSON.parse("{\"result\":#{result}}", :max_nesting => false)["result"]
+    end
 
-      result = @driver.get_eval("try { eval(#{escaped_script}, window); } catch(err) { window.eval(#{escaped_script}); }")
-      JSON.parse("{\"result\":#{result}}")["result"]
+    def json_generate(obj)
+      JSON.generate(obj)
     end
   end
 end

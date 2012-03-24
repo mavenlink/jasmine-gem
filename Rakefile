@@ -1,66 +1,55 @@
-require "#{File.dirname(__FILE__)}/vendor/gems/environment"
-Bundler.require_env :rake
-
+$LOAD_PATH.unshift File.expand_path(File.dirname(__FILE__))
 $LOAD_PATH.unshift File.expand_path("#{File.dirname(__FILE__)}/lib")
+require "bundler"
+Bundler.setup
+Bundler::GemHelper.install_tasks
 
-require 'spec'
-require 'spec/rake/spectask'
+require "jasmine"
+if Jasmine::Dependencies.rspec2?
+  require 'rspec'
+  require 'rspec/core/rake_task'
+else
+  require 'spec'
+  require 'spec/rake/spectask'
+end
+require 'ci/reporter/rake/rspec'
 
 desc "Run all examples"
-Spec::Rake::SpecTask.new('spec') do |t|
-  t.spec_files = FileList['spec/**/*.rb']
+if Jasmine::Dependencies.rspec2?
+  RSpec::Core::RakeTask.new(:spec) do |t|
+    t.pattern = 'spec/**/*_spec.rb'
+  end
+else
+  Spec::Rake::SpecTask.new('spec') do |t|
+    t.spec_files = FileList['spec/**/*.rb']
+  end
 end
 
+task :spec => ['jasmine:copy_examples_to_gem', 'ci:setup:rspec']
+
+task :default => :spec
+
 namespace :jasmine do
-#  require 'jasmine'
-  require 'spec/jasmine_self_test_config'
+  require "jasmine-core"
+  require './spec/jasmine_self_test_config'
+  task :server do          
+    port = ENV['JASMINE_PORT'] || 8888
+    JasmineSelfTestConfig.new.start_server(port)
 
-#  desc "Run continuous integration tests"
-#  require "spec"
-#  require 'spec/rake/spectask'
-#  Spec::Rake::SpecTask.new(:ci) do |t|
-#    t.spec_opts = ["--color", "--format", "specdoc"]
-#    t.verbose = true
-#    t.spec_files = [JasmineHelper.meta_spec_path]
-#  end
-
-  task :server do
     puts "your tests are here:"
-    puts "  http://localhost:8888/run.html"
+    puts "  http://localhost:#{port}/"
+  end
 
-    JasmineSelfTestConfig.new.start_server
+  desc "Copy examples from Jasmine JS to the gem"
+  task :copy_examples_to_gem do
+    require "fileutils"
+
+    # copy jasmine's example tree into our generator templates dir
+    FileUtils.rm_r('generators/jasmine/templates/jasmine-example', :force => true)
+    FileUtils.cp_r(File.join(Jasmine::Core.path, 'example'), 'generators/jasmine/templates/jasmine-example', :preserve => true)
   end
 end
 
 desc "Run specs via server"
 task :jasmine => ['jasmine:server']
 
-
-namespace :jeweler do
-
-  unless File.exists?('jasmine/lib')
-    raise "Jasmine submodule isn't present.  Run git submodule update --init"
-  end
-
-  begin
-    require 'jeweler'
-    require 'rake'
-    Jeweler::Tasks.new do |gemspec|
-      gemspec.name = "jasmine"
-      gemspec.summary = "Jasmine Ruby Runner"
-      gemspec.description = "Javascript BDD test framework"
-      gemspec.email = "ragaskar@gmail.com"
-      gemspec.homepage = "http://github.com/pivotal/jasmine-ruby"
-      gemspec.authors = ["Rajan Agaskar", "Christian Williams"]
-      gemspec.executables = ["jasmine"]
-      gemspec.files = FileList.new('generators/**/**', 'lib/**/**', 'jasmine/lib/**', 'jasmine/contrib/ruby/**', 'tasks/**', 'templates/**')
-      gemspec.add_dependency('rspec', '>= 1.1.5')
-      gemspec.add_dependency('json', '>= 1.1.9')
-      gemspec.add_dependency('rack', '>= 1.0.0')
-      gemspec.add_dependency('thin', '>= 1.2.4')
-      gemspec.add_dependency('selenium-rc', '>=2.1.0')
-      gemspec.add_dependency('selenium-client', '>=1.2.17')
-    end
-    Jeweler::GemcutterTasks.new
-  end
-end

@@ -1,37 +1,77 @@
-jasmine-ruby
-============
+# The Jasmine Gem <a title="Build at Travis CI" href="http://travis-ci.org/#!/pivotal/jasmine-gem"><img src="https://secure.travis-ci.org/pivotal/jasmine-gem.png" /></a>
 
-Jasmine Ruby dynamically serves HTML suites for [Jasmine](http://github.com/pivotal/jasmine)
+The [Jasmine](http://github.com/pivotal/jasmine) Ruby Gem is a package of helper code for developing Jasmine projects for Ruby-based web projects (Rails, Sinatra, etc.) or for JavaScript projects where Ruby is a welcome partner. It serves up a project's Jasmine suite in a browser so you can focus on your code instead of manually editing script tags in the Jasmine runner HTML file.
 
-To use:
+## Contents
+This gem contains:
 
-`(sudo) gem install jasmine`
+* A small server that builds and executes a Jasmine suite for a project
+* A script that sets up a project to use the Jasmine gem's server
+* Generators for Ruby on Rails projects (Rails 2 and Rails 3)
 
-Post-installation:
+You can get all of this by: `gem install jasmine` or by adding Jasmine to your `Gemfile`.
 
-For Rails support, use
+## Init A Project
+
+To initialize a project for Jasmine, it depends on your web framework
+
+For Rails2 support, use
 
 `script/generate jasmine`
 
-For other projects, use
+For Rails3 support, use
+
+`rails g jasmine:install`
+`rails g jasmine:examples`
+
+For any other project (Sinatra, Merb, or something we don't yet know about) use
 
 `jasmine init`
 
-After initializing a project, you may
+## Usage
+
+Start the Jasmine server:
 
 `rake jasmine`
 
-to set up a server. Opening localhost:8888 in a web browser will now run your jasmine specs.
+Point your browser to `localhost:8888`. The suite will run every time this page is re-loaded.  
 
-You may also
+Start Jasmine on a different port:
+
+`rake jasmine JASMINE_PORT=1337`
+
+Point your browser to `localhost:1337`. 
+
+For Continuous Integration environments, add this task to the project build steps:
 
 `rake jasmine:ci`
 
-which will run your Jasmine suites using selenium and rspec. This task is suitable for running in continuous integration environments.
+This uses Selenium to launch a browser and run the Jasmine suite. Then it uses RSpec to extract the results from the Jasmine reporter and write them to your build log.
 
-Simple Configuration:
+## Configuration
 
-Customize `spec/javascripts/support/jasmine.yaml` to enumerate the source files, stylesheets, and spec files you would like the Jasmine runner to include.
+Customize `spec/javascripts/support/jasmine.yml` to enumerate the source files, stylesheets, and spec files you would like the Jasmine runner to include.
 You may use dir glob strings.
 
-It is also possible to add overrides into the `spec/javascripts/support/jasmine_config.rb` file directly if you require further customization.
+For more complex configuration (e.g., port number), edit `spec/javascripts/support/jasmine_config.rb` file directly.
+
+## Note about the CI task and RSpec
+
+This gem requires RSpec for the `jasmine:ci` rake task to work. But this gem does not explicitly *depend* on any version of the RSpec gem.
+
+If you're writing a Rails application then as long as you've installed RSpec before you install Jasmine and attempt a `rake jasmine:ci`, then you will be fine.
+
+If you're using another Ruby framework, or don't care about Ruby, then run
+
+`gem install rspec`
+
+before you attempt the CI task.
+
+## Support
+
+Jasmine Mailing list: [jasmine-js@googlegroups.com](mailto:jasmine-js@googlegroups.com)
+Twitter: [@jasminebdd](http://twitter.com/jasminebdd)
+
+Please file issues here at Github
+
+Copyright (c) 2008-2010 Pivotal Labs. This software is licensed under the MIT License.

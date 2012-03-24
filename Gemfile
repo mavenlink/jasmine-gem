@@ -1,11 +1,3 @@
-gem "rake", "0.8.7"
-gem "jeweler", "1.4.0"
-gem "gemcutter", "0.2.1"
-
-gem "rspec", ">= 1.1.5", :only => :testing
-gem "rack", ">= 1.0.0", :only => :testing
-gem "thin", ">= 1.2.4", :only => :testing
-gem "selenium-rc", ">=2.1.0", :only => :testing
-gem "selenium-client", ">=1.2.17", :only => :testing
-
-disable_system_gems
+source "http://rubygems.org"
+gem "ci_reporter", :git => "git://github.com/nicksieger/ci_reporter.git", :ref => "af8674c7bddc338fad228c566a03e3b8188d8a22"
+gemspec

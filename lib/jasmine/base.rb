@@ -1,12 +1,7 @@
 require 'socket'
 require 'erb'
-require 'json'
 
 module Jasmine
-  def self.root
-    File.expand_path(File.join(File.dirname(__FILE__), '../../jasmine'))
-  end
-
   # this seemingly-over-complex method is necessary to get an open port on at least some of our Macs
   def self.open_socket_on_unused_port
     infos = Socket::getaddrinfo("localhost", nil, Socket::AF_UNSPEC, Socket::SOCK_STREAM, 0, Socket::AI_PASSIVE)
@@ -35,7 +30,7 @@ module Jasmine
     true
   end
 
-  def self.wait_for_listener(port, name = "required process", seconds_to_wait = 10)
+  def self.wait_for_listener(port, name = "required process", seconds_to_wait = 20)
     time_out_at = Time.now + seconds_to_wait
     until server_is_listening_on "localhost", port
       sleep 0.1
@@ -44,20 +39,8 @@ module Jasmine
     end
   end
 
-  def self.kill_process_group(process_group_id, signal="TERM")
-    Process.kill signal, -process_group_id # negative pid means kill process group. (see man 2 kill)
+  def self.runner_filepath
+    File.expand_path(File.join(File.dirname(__FILE__), "runner.rb"))
   end
 
-  def self.cachebust(files, root_dir="", replace=nil, replace_with=nil)
-    require 'digest/md5'
-    files.collect do |file_name|
-      real_file_name = replace && replace_with ? file_name.sub(replace, replace_with) : file_name
-      begin
-        digest = Digest::MD5.hexdigest(File.read("#{root_dir}#{real_file_name}"))
-      rescue
-        digest = "MISSING-FILE"
-      end
-      "#{file_name}?cachebust=#{digest}"
-    end
-  end
 end

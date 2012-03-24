@@ -1,35 +1,39 @@
+require 'rack'
+require 'jasmine-core'
+
 module Jasmine
   class RunAdapter
     def initialize(config)
       @config = config
-      @jasmine_files = [
-        "/__JASMINE_ROOT__/lib/" + File.basename(Dir.glob("#{Jasmine.root}/lib/jasmine*.js").first),
-        "/__JASMINE_ROOT__/lib/TrivialReporter.js",
-        "/__JASMINE_ROOT__/lib/json2.js",
-        "/__JASMINE_ROOT__/lib/consolex.js",
-      ]
-      @jasmine_stylesheets = ["/__JASMINE_ROOT__/lib/jasmine.css"]
+      @jasmine_files = Jasmine::Core.js_files.map {|f| "/__JASMINE_ROOT__/#{f}"}
+      @jasmine_stylesheets = Jasmine::Core.css_files.map {|f| "/__JASMINE_ROOT__/#{f}"}
     end
 
     def call(env)
+      return not_found if env["PATH_INFO"] != "/"
       run
     end
 
+    def not_found
+      body = "File not found: #{@path_info}\n"
+      [404, {"Content-Type" => "text/plain",
+             "Content-Length" => body.size.to_s,
+             "X-Cascade" => "pass"},
+       [body]]
+    end
+
     #noinspection RubyUnusedLocalVariable
-    def run
+    def run(focused_suite = nil)
       jasmine_files = @jasmine_files
       css_files = @jasmine_stylesheets + (@config.css_files || [])
-      js_files = @config.js_files
-
+      js_files = @config.js_files(focused_suite)
       body = ERB.new(File.read(File.join(File.dirname(__FILE__), "run.html.erb"))).result(binding)
       [
         200,
-        { 'Content-Type' => 'text/html' },
-        body
+        { 'Content-Type' => 'text/html', 'Cache-Control' => 'no-cache', 'Pragma' => 'no-cache' },
+        [body]
       ]
     end
-
-
   end
 
   class Redirect
@@ -51,7 +55,7 @@ module Jasmine
       [
         200,
         { 'Content-Type' => 'application/javascript' },
-        "document.write('<p>Couldn\\'t load #{env["PATH_INFO"]}!</p>');"
+        ["document.write('<p>Couldn\\'t load #{env["PATH_INFO"]}!</p>');"]
       ]
     end
   end
@@ -59,67 +63,37 @@ module Jasmine
   class FocusedSuite
     def initialize(config)
       @config = config
-#      @spec_files_or_proc = spec_files_or_proc || []
-#      @options = options
     end
 
     def call(env)
-      spec_files = @config.spec_files_or_proc
-      matching_specs = spec_files.select {|spec_file| spec_file =~ /#{Regexp.escape(env["PATH_INFO"])}/ }.compact
-      if !matching_specs.empty?
-        run_adapter = Jasmine::RunAdapter.new(matching_specs, @options)
-        run_adapter.run
-      else
-        [
-          200,
-          { 'Content-Type' => 'application/javascript' },
-          "document.write('<p>Couldn\\'t find any specs matching #{env["PATH_INFO"]}!</p>');"
-        ]
-      end
+      run_adapter = Jasmine::RunAdapter.new(@config)
+      run_adapter.run(env["PATH_INFO"])
     end
-
   end
 
-  class Server
-    attr_reader :thin
-
-    def initialize(port, config)
-      @port = port
-      @config = config
-
-      require 'thin'
-      thin_config = {
-        '/__suite__' => Jasmine::FocusedSuite.new(@config),
-        '/run.html' => Jasmine::Redirect.new('/'),
-        '/' => Jasmine::RunAdapter.new(@config)
-      }
-
-      @config.mappings.each do |from, to|
-        thin_config[from] = Rack::File.new(to)
+  def self.app(config)
+    Rack::Builder.app do
+      use Rack::Head
+      use Rack::ETag, "max-age=0, private, must-revalidate"
+      if Jasmine::Dependencies.rails_3_asset_pipeline?
+        map('/assets') do
+          run Rails.application.assets
+        end
       end
 
-      thin_config["/__JASMINE_ROOT__"] = Rack::File.new(Jasmine.root)
+      map('/run.html')         { run Jasmine::Redirect.new('/') }
+      map('/__suite__')        { run Jasmine::FocusedSuite.new(config) }
 
-      app = Rack::Cascade.new([
-        Rack::URLMap.new({'/' => Rack::File.new(@config.src_dir)}),
-        Rack::URLMap.new(thin_config),
-        JsAlert.new
-      ])
+      map('/__JASMINE_ROOT__') { run Rack::File.new(Jasmine::Core.path) }
+      map(config.spec_path)    { run Rack::File.new(config.spec_dir) }
+      map(config.root_path)    { run Rack::File.new(config.project_root) }
 
-      @thin = Thin::Server.new('0.0.0.0', @port, app)
-    end
-
-    def start
-      begin
-        thin.start
-      rescue RuntimeError => e
-        raise e unless e.message == 'no acceptor'
-        raise RuntimeError.new("A server is already running on port #{@port}")
+      map('/') do
+        run Rack::Cascade.new([
+          Rack::URLMap.new('/' => Rack::File.new(config.src_dir)),
+          Jasmine::RunAdapter.new(config)
+        ])
       end
-    end
-
-    def stop
-      thin.stop
     end
   end
 end

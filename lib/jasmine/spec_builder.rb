@@ -53,12 +53,12 @@ module Jasmine
 
     def load_suite_info
       started = Time.now
-      while !eval_js('jsApiReporter && jsApiReporter.started') do
+      while !eval_js('return jsApiReporter && jsApiReporter.started') do
         raise "couldn't connect to Jasmine after 60 seconds" if (started + 60 < Time.now)
         sleep 0.1
       end
 
-      @suites = eval_js("var result = jsApiReporter.suites(); if (window.Prototype && Object.toJSON) { Object.toJSON(result) } else { JSON.stringify(result) }")
+      @suites = eval_js("var result = jsApiReporter.suites(); if (window.Prototype && Object.toJSON) { return Object.toJSON(result) } else { return JSON.stringify(result) }")
     end
 
     def results_for(spec_id)
@@ -69,14 +69,14 @@ module Jasmine
     def load_results
       @spec_results = {}
       @spec_ids.each_slice(50) do |slice|
-        @spec_results.merge!(eval_js("var result = jsApiReporter.resultsForSpecs(#{JSON.generate(slice)}); if (window.Prototype && Object.toJSON) { Object.toJSON(result) } else { JSON.stringify(result) }"))
+        @spec_results.merge!(eval_js("var result = jsApiReporter.resultsForSpecs(#{json_generate(slice)}); if (window.Prototype && Object.toJSON) { return Object.toJSON(result) } else { return JSON.stringify(result) }"))
       end
       @spec_results
     end
 
     def wait_for_suites_to_finish_running
       puts "Waiting for suite to finish in browser ..."
-      while !eval_js('jsApiReporter.finished') do
+      while !eval_js('return jsApiReporter.finished') do
         sleep 0.1
       end
     end
@@ -109,8 +109,14 @@ module Jasmine
       example_name = spec["name"]
       @spec_ids << spec["id"]
       backtrace = @example_locations[parent.description + " " + example_name]
-      parent.it example_name, {}, backtrace do
-        me.report_spec(spec["id"])
+      if Jasmine::Dependencies.rspec2?
+        parent.it example_name, {} do
+          me.report_spec(spec["id"])
+        end
+      else
+        parent.it example_name, {}, backtrace do
+          me.report_spec(spec["id"])
+        end
       end
     end
 
@@ -119,7 +125,7 @@ module Jasmine
       out = ""
       messages = spec_results['messages'].each do |message|
         case
-          when message["type"] == "MessageResult"
+          when message["type"] == "log"
             puts message["text"]
             puts "\n"
           else
@@ -147,6 +153,10 @@ module Jasmine
 
     def eval_js(js)
       @runner.eval_js(js)
+    end
+
+    def json_generate(obj)
+      @runner.json_generate(obj)
     end
   end
 end
