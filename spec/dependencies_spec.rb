@@ -43,6 +43,22 @@ if Jasmine::Dependencies.rspec2?
         end
       end
 
+      describe ".legacy_rails?" do
+        subject { Jasmine::Dependencies.legacy_rails? }
+        context "when rails < 2.3.11 is present" do
+          before do
+            Gem::Specification.should_receive(:find_by_name).with("rails", "< 2.3.11").and_return(true)
+          end
+          it { should be_true }
+        end
+        context "when rails < 2.3.11 is not present" do
+          before do
+            Gem::Specification.should_receive(:find_by_name).with("rails", "< 2.3.11").and_raise(Gem::LoadError)
+          end
+          it { should be_false }
+        end
+      end
+
       describe ".rails3?" do
         subject { Jasmine::Dependencies.rails3? }
         context "when rails 3 is present" do
@@ -61,7 +77,7 @@ if Jasmine::Dependencies.rspec2?
 
       describe ".rails_3_asset_pipeline?" do
         subject { Jasmine::Dependencies.rails_3_asset_pipeline? }
-        let(:application) { double(:application, :assets => rails_application_assets)}
+        let(:application) { double(:application) }
         before do
           Rails.stub(:respond_to?).with(:application).and_return(respond_to_application)
           Rails.stub(:application).and_return(application)
@@ -69,6 +85,7 @@ if Jasmine::Dependencies.rspec2?
         context "when rails 3 is present and the application pipeline is in use" do
           before do
             Gem::Specification.should_receive(:find_by_name).with("rails", ">= 3.0").and_return(true)
+            application.stub(:assets).and_return(rails_application_assets) 
           end
           let(:rails3_present) { true }
           let(:respond_to_application) { true }
@@ -78,6 +95,7 @@ if Jasmine::Dependencies.rspec2?
         context "when rails 3 is present and the application pipeline is not in use" do
           before do
             Gem::Specification.should_receive(:find_by_name).with("rails", ">= 3.0").and_return(true)
+            application.stub(:assets).and_return(rails_application_assets) 
           end
           let(:rails3_present) { true }
           let(:respond_to_application) { true }
@@ -87,10 +105,19 @@ if Jasmine::Dependencies.rspec2?
         context "when rails 3 is present but not loaded" do
           before do
             Gem::Specification.should_receive(:find_by_name).with("rails", ">= 3.0").and_return(true)
+            application.stub(:assets).and_return(rails_application_assets) 
           end
           let(:rails3_present) { true }
           let(:respond_to_application) { false }
           let(:rails_application_assets) { false }
+          it { should be_false }
+        end
+        context "when rails 3 is present but doesn't respond to assets" do
+          before do
+            Gem::Specification.should_receive(:find_by_name).with("rails", ">= 3.0").and_return(true)
+          end
+          let(:rails3_present) { true }
+          let(:respond_to_application) { true }
           it { should be_false }
         end
         context "when rails 3 is not present" do
@@ -136,6 +163,21 @@ if Jasmine::Dependencies.rspec2?
         end
         context "when rails 2 is not present" do
           let(:rails2_present) { false }
+          it { should be_false }
+        end
+      end
+
+      describe ".legacy_rails?" do
+        subject { Jasmine::Dependencies.legacy_rails? }
+        before do
+          Gem.should_receive(:available?).with("rails", "< 2.3.11").and_return(legacy_rails_present)
+        end
+        context "when rails < 2.3.11 is present" do
+          let(:legacy_rails_present) { true }
+          it { should be_true }
+        end
+        context "when rails < 2.3.11 is not present" do
+          let(:legacy_rails_present) { false }
           it { should be_false }
         end
       end

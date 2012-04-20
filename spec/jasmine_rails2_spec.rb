@@ -1,6 +1,6 @@
 require File.expand_path(File.join(File.dirname(__FILE__), "spec_helper"))
 
-if Jasmine::Dependencies.rails2?
+if Jasmine::Dependencies.rails2? && !Jasmine::Dependencies.legacy_rails?
 
   describe "A Rails 2 app" do
 
@@ -17,7 +17,7 @@ if Jasmine::Dependencies.rails2?
 
     context "before Jasmine has been installed" do
 
-      it "should not the jasmine:install generator" do
+      it "should not show the jasmine:install generator" do
         output = `./script/generate --help`
         output.should_not include('jasmine:install')
       end
@@ -62,8 +62,6 @@ if Jasmine::Dependencies.rails2?
 
         it "should find the Jasmine configuration files" do
           File.exists?("spec/javascripts/support/jasmine.yml").should == true
-          File.exists?("spec/javascripts/support/jasmine_runner.rb").should == true
-          File.exists?("spec/javascripts/support/jasmine_config.rb").should == true
         end
 
         it "should find the Jasmine example files" do
@@ -74,8 +72,6 @@ if Jasmine::Dependencies.rails2?
           File.exists?("spec/javascripts/helpers/SpecHelper.js").should == true
 
           File.exists?("spec/javascripts/support/jasmine.yml").should == true
-          File.exists?("spec/javascripts/support/jasmine_runner.rb").should == true
-          File.exists?("spec/javascripts/support/jasmine_config.rb").should == true
         end
 
         it "should show jasmine rake task" do
