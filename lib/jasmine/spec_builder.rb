@@ -77,6 +77,7 @@ module Jasmine
     def wait_for_suites_to_finish_running
       puts "Waiting for suite to finish in browser ..."
       while !eval_js('return jsApiReporter.finished') do
+        print '.'
         sleep 0.1
       end
     end
