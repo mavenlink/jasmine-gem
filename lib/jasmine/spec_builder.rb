@@ -76,14 +76,8 @@ module Jasmine
 
     def wait_for_suites_to_finish_running
       puts "Waiting for suite to finish in browser ..."
-      iteration_counter = 0
       while !eval_js('return jsApiReporter.finished') do
-        if iteration_counter == 100
-          puts "."
-          iteration_counter = 0
-        end
         sleep 0.1
-        iteration_counter += 1
       end
     end
 
