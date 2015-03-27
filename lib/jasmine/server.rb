@@ -116,6 +116,7 @@ module Jasmine
 
       map('/') do
         run Rack::Cascade.new([
+          Rack::URLMap.new('/' => Rack::File.new(Rails.root.join("public"))),
           Rack::URLMap.new('/' => Rack::File.new(config.src_dir)),
           Jasmine::RunAdapter.new(config)
         ])
