@@ -9,7 +9,7 @@ module Jasmine
       end
 
       http_client = options[:selenium_http_client] || Selenium::WebDriver::Remote::Http::Default.new
-      http_client.timeout = options[:timeout] if options[:timeout]
+      http_client.timeout = 500
       options = if browser == "firefox" && ENV["JASMINE_FIREBUG"]
                   require File.join(File.dirname(__FILE__), "firebug/firebug")
                   profile = Selenium::WebDriver::Firefox::Profile.new
