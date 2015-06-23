@@ -10,6 +10,6 @@ jasmine_files.each do |file|
   require File.join('jasmine', file)
 end
 
-require File.join('jasmine', "railtie") if Jasmine::Dependencies.rails3?
+require File.join('jasmine', "railtie") if Jasmine::Dependencies.rails3? || Jasmine::Dependencies.rails4?
 
 

@@ -18,8 +18,12 @@ module Jasmine
         safe_gem_check("rails", ">= 3.0")
       end
 
-      def rails_3_asset_pipeline?
-        rails3? && Rails.respond_to?(:application) && Rails.application.respond_to?(:assets) && Rails.application.assets
+      def rails4?
+        safe_gem_check("rails", ">= 4.0")
+      end
+
+      def rails_asset_pipeline?
+        (rails3? || rails4?) && Rails.respond_to?(:application) && Rails.application.respond_to?(:assets) && Rails.application.assets
       end
 
       private
