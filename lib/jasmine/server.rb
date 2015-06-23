@@ -92,7 +92,7 @@ module Jasmine
       use Jasmine::CacheControl
 
       # Mount the Rails 3 Asset Pipeline
-      if Jasmine::Dependencies.rails_3_asset_pipeline?
+      if Jasmine::Dependencies.rails_asset_pipeline?
         map('/assets') do
           # In order to have asset helpers like asset_path and image_path, we need to require 'action_view/base'.  This
           # triggers run_load_hooks on action_view which, in turn, causes sprockets/railtie to load the Sprockets asset
