@@ -15,6 +15,10 @@ module Jasmine
       ENV["JASMINE_PORT"] || Jasmine::find_unused_port
     end
 
+    def timeout
+      ENV["JASMINE_TIMEOUT"] || 15
+    end
+
     def start_server(port = 8888)
       if defined? Rack::Server # Rack ~>1.0 compatibility
         server = Rack::Server.new(:Port => port, :AccessLog => [])
@@ -28,7 +32,7 @@ module Jasmine
 
     def start
       start_jasmine_server
-      @client = Jasmine::SeleniumDriver.new(browser, "#{jasmine_host}:#{@jasmine_server_port}/")
+      @client = Jasmine::SeleniumDriver.new(browser, "#{jasmine_host}:#{@jasmine_server_port}/", options={timeout: timeout})
       @client.connect
     end
 
