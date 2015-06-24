@@ -1,7 +1,10 @@
 require 'enumerator'
+require 'rspec/core/dsl'
 
 module Jasmine
   class SpecBuilder
+    include RSpec::Core::DSL
+
     attr_accessor :suites
 
     def initialize(config)
@@ -34,7 +37,7 @@ module Jasmine
       previous_indent_level = 0
       @config.spec_files_full_paths.each do |filename|
         line_number = 1
-        File.open(filename, "rb") do |file|
+        File.open(filename, "r") do |file|
           file.readlines.each do |line|
             match = /^(\s*)(describe|it)\s*\(\s*["'](.*)["']\s*,\s*function/.match(line)
             if (match)
@@ -83,19 +86,18 @@ module Jasmine
     end
 
     def declare_suites
-      me = self
       suites.each do |suite|
-        declare_suite(self, suite)
+        declare_suite(suite)
       end
     end
 
-    def declare_suite(parent, suite)
+    def declare_suite(suite)
       me = self
-      parent.describe suite["name"] do
+      describe suite["name"] do
         suite["children"].each do |suite_or_spec|
           type = suite_or_spec["type"]
           if type == "suite"
-            me.declare_suite(self, suite_or_spec)
+            me.declare_suite(suite_or_spec)
           elsif type == "spec"
             me.declare_spec(self, suite_or_spec)
           else
