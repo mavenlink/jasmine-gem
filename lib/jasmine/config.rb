@@ -16,7 +16,7 @@ module Jasmine
     end
 
     def timeout
-      ENV["JASMINE_TIMEOUT"] || 15
+      ENV["JASMINE_TIMEOUT"].to_i || 15
     end
 
     def start_server(port = 8888)
