@@ -91,6 +91,7 @@ module Jasmine
       use Rack::Head
       use Jasmine::CacheControl
 
+=begin
       # Mount the Rails 3 Asset Pipeline
       if Jasmine::Dependencies.rails_asset_pipeline?
         map('/assets') do
@@ -106,6 +107,7 @@ module Jasmine
           run Rails.application.assets
         end
       end
+=end
 
       map('/run.html')         { run Jasmine::Redirect.new('/') }
       map('/__suite__')        { run Jasmine::FocusedSuite.new(config) }
