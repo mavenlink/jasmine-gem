@@ -91,23 +91,23 @@ module Jasmine
       use Rack::Head
       use Jasmine::CacheControl
 
-=begin
-      # Mount the Rails 3 Asset Pipeline
-      if Jasmine::Dependencies.rails_asset_pipeline?
-        map('/assets') do
-          # In order to have asset helpers like asset_path and image_path, we need to require 'action_view/base'.  This
-          # triggers run_load_hooks on action_view which, in turn, causes sprockets/railtie to load the Sprockets asset
-          # helpers.  Alternatively, you can include the helpers yourself without loading action_view/base:
-          #   Rails.application.assets.context_class.instance_eval do
-          #     include ::Sprockets::Helpers::IsolatedHelper
-          #     include ::Sprockets::Helpers::RailsHelper
-          #   end
-          require 'action_view/base'
+      unless ENV['CI']
+        # Mount the Rails 3 Asset Pipeline
+        if Jasmine::Dependencies.rails_asset_pipeline?
+          map('/assets') do
+            # In order to have asset helpers like asset_path and image_path, we need to require 'action_view/base'.  This
+            # triggers run_load_hooks on action_view which, in turn, causes sprockets/railtie to load the Sprockets asset
+            # helpers.  Alternatively, you can include the helpers yourself without loading action_view/base:
+            #   Rails.application.assets.context_class.instance_eval do
+            #     include ::Sprockets::Helpers::IsolatedHelper
+            #     include ::Sprockets::Helpers::RailsHelper
+            #   end
+            require 'action_view/base'
 
-          run Rails.application.assets
+            run Rails.application.assets
+          end
         end
       end
-=end
 
       map('/run.html')         { run Jasmine::Redirect.new('/') }
       map('/__suite__')        { run Jasmine::FocusedSuite.new(config) }
