@@ -49,7 +49,9 @@ module Jasmine
 
     def eval_js(script)
       result = @driver.execute_script(script)
-      JSON.parse("{\"result\":#{result}}", :max_nesting => false)["result"]
+      if result
+        JSON.parse("{\"result\":#{result}}", :max_nesting => false)["result"]
+      end
     rescue EOFError, Errno::ECONNRESET => e
       retries ||= 0
       puts "Got an #{e.class} while trying to eval_js, retrying..."
