@@ -2,41 +2,31 @@ module Jasmine
   module Dependencies
 
     class << self
-      def rspec2?
-        safe_gem_check("rspec", ">= 2.0")
-      end
-
-      def rails2?
-        safe_gem_check("rails", "~> 2.3")
-      end
-
-      def legacy_rails?
-        safe_gem_check("rails", "< 2.3.11")
-      end
-
       def rails3?
-        safe_gem_check("rails", ">= 3.0")
+        rails? && Rails.version.to_i == 3
       end
 
       def rails4?
-        safe_gem_check("rails", ">= 4.0")
+        rails? && Rails.version.to_i == 4
       end
 
-      def rails_asset_pipeline?
-        (rails3? || rails4?) && Rails.respond_to?(:application) && Rails.application.respond_to?(:assets) && Rails.application.assets
+      def rails5?
+        rails? && Rails.version.to_i == 5
       end
 
-      private
-      def safe_gem_check(gem_name, version_string)
-        if Gem::Specification.respond_to?(:find_by_name)
-          Gem::Specification.find_by_name(gem_name, version_string)
-        elsif Gem.respond_to?(:available?)
-          Gem.available?(gem_name, version_string)
-        end
-      rescue Gem::LoadError
-        false
+      def rails?
+        defined?(Rails) && Rails.respond_to?(:version)
       end
 
+      def legacy_rack?
+        !defined?(Rack::Server)
+      end
+
+      def use_asset_pipeline?
+        assets_pipeline_available = (rails3? || rails4? || rails5?) && Rails.respond_to?(:application) && Rails.application.respond_to?(:assets)
+        rails3_assets_enabled = rails3? && assets_pipeline_available && Rails.application.config.assets.enabled != false
+        assets_pipeline_available && (rails4? || rails5? || rails3_assets_enabled)
+      end
     end
   end
 end

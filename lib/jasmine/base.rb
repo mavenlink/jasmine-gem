@@ -23,7 +23,7 @@ module Jasmine
     require 'socket'
     begin
       socket = TCPSocket.open(hostname, port)
-    rescue Errno::ECONNREFUSED
+    rescue Errno::ECONNREFUSED, Errno::ENETUNREACH, Errno::EAFNOSUPPORT
       return false
     end
     socket.close
@@ -40,7 +40,15 @@ module Jasmine
   end
 
   def self.runner_filepath
-    File.expand_path(File.join(File.dirname(__FILE__), "runner.rb"))
+    File.expand_path(File.join(File.dirname(__FILE__), "run_specs.rb"))
+  end
+
+  def self.runner_template
+    File.read(File.join(File.dirname(__FILE__), "run.html.erb"))
+  end
+
+  def self.root(*paths)
+    File.expand_path(File.join(File.dirname(__FILE__), *paths))
   end
 
 end

@@ -1,127 +1,20 @@
-require 'rack'
-require 'rack/utils'
-require 'jasmine-core'
-
 module Jasmine
-  class RunAdapter
-    def initialize(config)
-      @config = config
-      @jasmine_files = Jasmine::Core.js_files.map {|f| "/__JASMINE_ROOT__/#{f}"}
-      @jasmine_stylesheets = Jasmine::Core.css_files.map {|f| "/__JASMINE_ROOT__/#{f}"}
+  class Server
+    def initialize(port = 8888, application = nil, rack_options = nil)
+      @port = port
+      @application = application
+      @rack_options = rack_options || {}
     end
 
-    def call(env)
-      return not_found if env["PATH_INFO"] != "/"
-      run
-    end
-
-    def not_found
-      body = "File not found: #{@path_info}\n"
-      [404, {"Content-Type" => "text/plain",
-             "Content-Length" => body.size.to_s,
-             "X-Cascade" => "pass"},
-       [body]]
-    end
-
-    #noinspection RubyUnusedLocalVariable
-    def run(focused_suite = nil)
-      jasmine_files = @jasmine_files
-      css_files = @jasmine_stylesheets + (@config.css_files || [])
-      js_files = @config.js_files(focused_suite)
-      body = ERB.new(File.read(File.join(File.dirname(__FILE__), "run.html.erb"))).result(binding)
-      [
-        200,
-        { 'Content-Type' => 'text/html', 'Pragma' => 'no-cache' },
-        [body]
-      ]
-    end
-  end
-
-  class Redirect
-    def initialize(url)
-      @url = url
-    end
-
-    def call(env)
-      [
-        302,
-        { 'Location' => @url },
-        []
-      ]
-    end
-  end
-
-  class JsAlert
-    def call(env)
-      [
-        200,
-        { 'Content-Type' => 'application/javascript' },
-        ["document.write('<p>Couldn\\'t load #{env["PATH_INFO"]}!</p>');"]
-      ]
-    end
-  end
-
-  class FocusedSuite
-    def initialize(config)
-      @config = config
-    end
-
-    def call(env)
-      run_adapter = Jasmine::RunAdapter.new(@config)
-      run_adapter.run(env["PATH_INFO"])
-    end
-  end
-
-  class CacheControl
-    def initialize(app)
-      @app, @content_type = app
-    end
-
-    def call(env)
-      status, headers, body = @app.call(env)
-      headers = Rack::Utils::HeaderHash.new(headers)
-      headers['Cache-Control'] ||= "max-age=0, private, must-revalidate"
-      [status, headers, body]
-    end
-  end
-
-
-  def self.app(config)
-    Rack::Builder.app do
-      use Rack::Head
-      use Jasmine::CacheControl
-
-      unless ENV['CI']
-        # Mount the Rails 3 Asset Pipeline
-        if Jasmine::Dependencies.rails_asset_pipeline?
-          map('/assets') do
-            # In order to have asset helpers like asset_path and image_path, we need to require 'action_view/base'.  This
-            # triggers run_load_hooks on action_view which, in turn, causes sprockets/railtie to load the Sprockets asset
-            # helpers.  Alternatively, you can include the helpers yourself without loading action_view/base:
-            #   Rails.application.assets.context_class.instance_eval do
-            #     include ::Sprockets::Helpers::IsolatedHelper
-            #     include ::Sprockets::Helpers::RailsHelper
-            #   end
-            require 'action_view/base'
-
-            run Rails.application.assets
-          end
-        end
-      end
-
-      map('/run.html')         { run Jasmine::Redirect.new('/') }
-      map('/__suite__')        { run Jasmine::FocusedSuite.new(config) }
-
-      map('/__JASMINE_ROOT__') { run Rack::File.new(Jasmine::Core.path) }
-      map(config.spec_path)    { run Rack::File.new(config.spec_dir) }
-      map(config.root_path)    { run Rack::File.new(config.project_root) }
-
-      map('/') do
-        run Rack::Cascade.new([
-          Rack::URLMap.new('/' => Rack::File.new(Rails.root.join("public"))),
-          Rack::URLMap.new('/' => Rack::File.new(config.src_dir)),
-          Jasmine::RunAdapter.new(config)
-        ])
+    def start
+      if Jasmine::Dependencies.legacy_rack?
+        handler = Rack::Handler.get('webrick')
+        handler.run(@application, :Port => @port, :AccessLog => [])
+      else
+        server = Rack::Server.new(@rack_options.merge(:Port => @port, :AccessLog => []))
+        # workaround for Rack bug, when Rack > 1.2.1 is released Rack::Server.start(:app => Jasmine.app(self)) will work
+        server.instance_variable_set(:@app, @application)
+        server.start
       end
     end
   end

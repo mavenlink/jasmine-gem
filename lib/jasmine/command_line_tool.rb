@@ -1,69 +1,124 @@
+require 'fileutils'
+
 module Jasmine
   class CommandLineTool
-    def cwd
-      File.expand_path(File.join(File.dirname(__FILE__), '../..'))
-    end
+    def process(argv)
+      @argv = argv
 
-    def expand(*paths)
-      File.expand_path(File.join(*paths))
-    end
-
-    def template_path(filepath)
-      expand(cwd, File.join("generators/jasmine/templates", filepath))
-    end
-
-    def dest_path(filepath)
-      expand(Dir.pwd, filepath)
-    end
-
-    def copy_unless_exists(relative_path, dest_path = nil)
-      unless File.exist?(dest_path(relative_path))
-        FileUtils.copy(template_path(relative_path), dest_path(dest_path || relative_path))
+      if @argv.size > 0 && respond_to?(@argv[0])
+        public_send(@argv[0])
+      else
+        print_help
       end
     end
 
-    def process(argv)
-      if argv[0] == 'init'
-        require 'fileutils'
+    def init
+      ensure_not_rails!
 
-        FileUtils.makedirs('public/javascripts')
-        FileUtils.makedirs('spec/javascripts')
-        FileUtils.makedirs('spec/javascripts/support')
-        FileUtils.makedirs('spec/javascripts/helpers')
+      copy_file_structure('install')
 
-        copy_unless_exists('jasmine-example/src/Player.js', 'public/javascripts/Player.js')
-        copy_unless_exists('jasmine-example/src/Song.js', 'public/javascripts/Song.js')
-        copy_unless_exists('jasmine-example/spec/PlayerSpec.js', 'spec/javascripts/PlayerSpec.js')
-        copy_unless_exists('jasmine-example/spec/SpecHelper.js', 'spec/javascripts/helpers/SpecHelper.js')
+      update_rakefile
 
-        rails_tasks_dir = dest_path('lib/tasks')
-        if File.exist?(rails_tasks_dir)
-          copy_unless_exists('lib/tasks/jasmine.rake')
-          copy_unless_exists('spec/javascripts/support/jasmine-rails.yml', 'spec/javascripts/support/jasmine.yml')
-        else
-          copy_unless_exists('spec/javascripts/support/jasmine.yml')
-          require 'rake'
-          write_mode = 'w'
-          if File.exist?(dest_path('Rakefile'))
-            load dest_path('Rakefile')
-            write_mode = 'a'
-          end
+      install_path = File.join(jasmine_gem_path, "lib", "jasmine", "command_line_install.txt")
+      puts File.read(install_path)
+    end
 
-          unless Rake::Task.task_defined?('jasmine')
-            File.open(dest_path('Rakefile'), write_mode) do |f|
-              f.write("\n" + File.read(template_path('lib/tasks/jasmine.rake')))
+    def examples
+      copy_file_structure('examples')
+
+      puts "Jasmine has installed some examples."
+    end
+
+    def copy_boot_js
+      destination_path = File.join('spec', 'javascripts', 'support', 'boot.js')
+      if File.exists?(destination_path)
+        puts "#{destination_path} already exists"
+      else
+        require 'jasmine-core'
+        source = File.join(Jasmine::Core.path, 'boot.js')
+        FileUtils.mkdir_p(File.dirname(destination_path))
+        FileUtils.cp(source, destination_path)
+
+        puts 'Jasmine has copied an example boot.js to spec/javascripts/support'
+        puts 'To use it set the boot_dir and boot_files keys in jasmine.yml'
+        puts ' to point to your custom boot.js'
+      end
+    end
+
+    def license
+      puts File.read(File.join(jasmine_gem_path, "MIT.LICENSE"))
+    end
+
+    def print_help
+      puts "unknown command #{@argv.join(' ')}" unless @argv.empty?
+      puts "Usage: jasmine init"
+      puts "               examples"
+      puts "               copy_boot_js"
+      puts "               license"
+    end
+
+    private
+
+    def jasmine_gem_path
+      File.expand_path('../../..', __FILE__)
+    end
+
+    def copy_file_structure(generator)
+      source_dir = File.join(jasmine_gem_path, 'lib', 'generators', 'jasmine', generator, 'templates')
+      dest_dir = Dir.pwd
+
+      globber = File.join(source_dir, '**', '{*,.*}')
+      source_files = Dir.glob(globber).reject { |path| File.directory?(path) }
+      source_files.each do |source_path|
+        relative_path = source_path.sub(source_dir, '')
+        dest_path = File.join(dest_dir, relative_path).sub(/app[\/\\]assets/, 'public')
+        unless File.exist?(dest_path)
+          FileUtils.mkdir_p(File.dirname(dest_path))
+          FileUtils.copy(source_path, dest_path)
+          if File.basename(dest_path) == 'jasmine.yml'
+            replaced = File.read(dest_path).gsub("assets/application.js", "public/javascripts/**/*.js").gsub("assets/application.css", "stylesheets/**/*.css")
+            File.open(dest_path, 'w') do |file|
+              file.write(replaced)
             end
           end
         end
-        File.open(template_path('INSTALL'), 'r').each_line do |line|
-          puts line
+      end
+    end
+
+    def force?
+      @argv.size > 1 && @argv[1] == "--force"
+    end
+
+    def ensure_not_rails!
+      if File.exist?("Gemfile") && open("Gemfile", 'r').read.include?('rails') && !force?
+        puts <<-EOF
+
+You're attempting to run jasmine init in a Rails project. You probably want to use the Rails generator like so:
+    rails g jasmine:install
+
+If you're not actually in a Rails application, just run this command again with --force
+    jasmine init --force
+EOF
+        exit 1
+      end
+    end
+
+    def update_rakefile
+      require 'rake'
+      write_mode = 'w'
+      rakefile_path = File.join(Dir.pwd, 'Rakefile')
+      if File.exist?(rakefile_path)
+        load rakefile_path
+        write_mode = 'a'
+      end
+
+      unless Rake::Task.task_defined?('jasmine')
+        File.open(rakefile_path, write_mode) do |f|
+          f.write(<<-JASMINE_RAKE)
+require 'jasmine'
+load 'jasmine/tasks/jasmine.rake'
+JASMINE_RAKE
         end
-      elsif argv[0] == "license"
-        puts File.new(expand(cwd, "MIT.LICENSE")).read
-      else
-        puts "unknown command #{argv}"
-        puts "Usage: jasmine init"
-        puts "               license"
       end
     end
   end

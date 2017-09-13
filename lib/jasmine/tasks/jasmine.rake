@@ -1,4 +1,31 @@
+if Rake.application.tasks.any? {|t| t.name == 'jasmine/ci' }
+  message = <<-EOF
+
+                        WARNING
+Detected that jasmine rake tasks have been loaded twice.
+This will cause the 'rake jasmine:ci' and 'rake jasmine' tasks to fail.
+
+To fix this problem, you should ensure that you only load 'jasmine/tasks/jasmine.rake'
+once. This should be done for you automatically if you installed jasmine's rake tasks
+with either 'jasmine init' or 'rails g jasmine:install'.
+
+
+  EOF
+  raise Exception.new(message)
+end
+
 namespace :jasmine do
+  task :configure do
+    require 'jasmine/config'
+
+    begin
+      Jasmine.load_configuration_from_yaml(ENV['JASMINE_CONFIG_PATH'])
+    rescue Jasmine::ConfigNotFound => e
+      puts e.message
+      exit 1
+    end
+  end
+
   task :require do
     require 'jasmine'
   end
@@ -12,48 +39,33 @@ namespace :jasmine do
     end
   end
 
-  desc "Run continuous integration tests"
-  task :ci => ["jasmine:require_json", "jasmine:require"] do
-    if Jasmine::Dependencies.rspec2?
-      require "rspec"
-      require "rspec/core/rake_task"
-    else
-      require "spec"
-      require 'spec/rake/spectask'
+  task :configure_plugins
+
+  desc 'Run jasmine tests in a browser, random and seed override config'
+  task :ci, [:random, :seed] => %w(jasmine:require_json jasmine:require jasmine:configure jasmine:configure_plugins) do |t, args|
+    if ENV['spec']
+      spec_path = ENV['spec'].dup
+      if spec_path.include? "spec/javascripts/" # crappy hack to allow for bash tab completion
+        spec_path.slice! "spec/javascripts/"
+      end
+      Jasmine.load_spec(spec_path)
     end
 
-    if Jasmine::Dependencies.rspec2?
-      RSpec::Core::RakeTask.new(:jasmine_continuous_integration_runner) do |t|
-        t.rspec_opts = ["--colour", "--format", ENV['JASMINE_SPEC_FORMAT'] || "progress"]
-        if ENV["JASMINE_SPEC_OUT"]
-          t.rspec_opts += ["--out", ENV["JASMINE_SPEC_OUT"]]
-        end
-        t.verbose = true
-        if Jasmine::Dependencies.rails_asset_pipeline?
-          t.ruby_opts = ["-r #{File.expand_path(File.join(::Rails.root, 'config', 'environment'))}"]
-        end
-        t.pattern = [Jasmine.runner_filepath]
-      end
-    else
-      Spec::Rake::SpecTask.new(:jasmine_continuous_integration_runner) do |t|
-        t.spec_opts = ["--color", "--format", ENV['JASMINE_SPEC_FORMAT'] || "specdoc"]
-        t.verbose = true
-        t.spec_files = [Jasmine.runner_filepath]
-      end
-    end
-    Rake::Task["jasmine_continuous_integration_runner"].invoke
+    ci_runner = Jasmine::CiRunner.new(Jasmine.config, args.to_hash)
+    exit(1) unless ci_runner.run
   end
 
-  task :server => "jasmine:require" do
-    jasmine_config_overrides = File.join(Jasmine::Config.new.project_root, 'spec', 'javascripts' ,'support' ,'jasmine_config.rb')
-    require jasmine_config_overrides if File.exist?(jasmine_config_overrides)
-
-    port = ENV['JASMINE_PORT'] || 8888
-    puts "your tests are here:"
-    puts "  http://localhost:#{port}/"
-    Jasmine::Config.new.start_server(port)
+  task :server => %w(jasmine:require jasmine:configure jasmine:configure_plugins) do
+    config = Jasmine.config
+    port = config.port(:server)
+    server = Jasmine::Server.new(port, Jasmine::Application.app(Jasmine.config), config.rack_options)
+    puts "your server is running here: http://localhost:#{port}/"
+    puts "your tests are here:         #{config.spec_dir}"
+    puts "your source files are here:  #{config.src_dir}"
+    puts ''
+    server.start
   end
 end
 
-desc "Run specs via server"
-task :jasmine => ['jasmine:server']
+desc 'Start server to host jasmine specs'
+task :jasmine => %w(jasmine:server)

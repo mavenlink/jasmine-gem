@@ -1,6 +1,7 @@
 To test changes to the jasmine-gem:
 
-* Export RAILS_VERSION as either "pojs-rspec1",  "pojs-rspec2", or "rails2" to test environments other than Rails 3.
+* You need to have the [jasmine project](https://github.com/jasmine/jasmine) checked out in `../jasmine`
+* Export RAILS_VERSION as either "pojs" (Plain Old JavaScript -- IE, no rails bindings), or "rails3" to test environments other than Rails 4.
 * Delete `Gemfile.lock`
 * Clear out your current gemset
 * exec a `bundle install`
